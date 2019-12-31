@@ -26,6 +26,7 @@ source("src/get_google_czdata.R", encoding = "UTF-8")
 # Reasoning: cz-week runs Th13-Th13, so current aas ends either on We or Th.
 #            if We, then start = max(mtr) + 1, else start = max(mtr)
 mtr_max <- max(tbl_montage$Uitzending)
+
 mtr_start_date <-
   if_else(wday(mtr_max, label = T, abbr = T) == "do", # legend: 1 = zo
           mtr_max,
@@ -169,7 +170,7 @@ rm(week_0_init, week_0_long1, week_0_long2, week_temp)
 # prep week-1/5 (days 1-7/8-14/... of month) ------------------------------
 # no matter which weekday comes first!
 
-source("src/wp_gidsweek_functions.R")
+source("src/mt_rooster_shared_functions.R")
 
 week_1 <-  prep_week("1")
 week_2 <-  prep_week("2")
@@ -212,77 +213,69 @@ rm(cz_slot_dates_raw)
 # + get cycle for A/B-week ------------------------------------------------
 cycle <- get_cycle(current_run_start)
 
-# + get gidsinfo ----------------------------------------------------------
-# tbl_gidsinfo <- readRDS(paste0(config$giva.rds.dir, "gidsinfo.RDS"))
-# tbl_gidsinfo_nl_en <- readRDS(paste0(config$giva.rds.dir, "gidsinfo_nl_en.RDS"))
-
-# + exclude this week's repeating broadcasts ------------------------------
-#   This week's iTunes-titles where cycle says "repeat", should be excluded 
-#   because they were uploaded before (originals + repeats upload together)
-
-#+ get iTunes-repeats --------------------------------------------------
-itunes_repeat_slots <- cz_week %>%
-  filter(cz_slot_key == paste0("product ", cycle) & cz_slot_value == "h") %>%
-  select(cz_slot_pfx)
-
-#+... join on 'titel', exclude on itunes-repeat ----
-cz_week_titles <- cz_week %>% 
-  filter(cz_slot_key == "titel") %>% 
-  anti_join(itunes_repeat_slots)
-
-#+ get sizes of each program ----
-cz_week_sizes <- cz_week %>% 
-  filter(cz_slot_key == "size") %>% 
-  select(cz_slot_pfx, size = cz_slot_value)
-
-# #+ get regular repeats ----
-# suppressWarnings(
-#   cz_week_repeats <- cz_week %>%
-#     filter(cz_slot_key == "herhaling") %>%
-#     mutate(
-#       hh_offset_dag = if_else(cz_slot_value == "tw", 
-#                               7L, 
-#                               as.integer(str_sub(cz_slot_value, 1, 2))),
-#       hh_offset_uur = if_else(cz_slot_value == "tw", 
-#                               as.integer(str_sub(cz_slot_pfx, 5, 6)),
-#                               as.integer(str_sub(cz_slot_value, 5, 6)))
-#     ) %>%
-#     select(cz_slot_pfx, hh_offset_dag, hh_offset_uur) 
-# )
-
 # + join the lot ----
+# !deprecated! set the product belonging to the other cycle, so it can be skipped
+# opposing_product <- paste0("product ", if_else(cycle == "A", "B", "A"))
 broadcasts.I <- cz_slot_dates %>% 
-  inner_join(cz_week_titles) %>% 
-  inner_join(cz_week_sizes) %>% 
-  # left_join(cz_week_repeats) %>% 
-  # inner_join(tbl_gidsinfo, by = c("cz_slot_value" = "key_modelrooster")) %>% 
-  # left_join(tbl_gidsinfo_nl_en, by = c("productie_taak" = "item_NL")) %>% 
-  # rename(productie_taak_EN = item_EN) %>% 
-  # left_join(tbl_gidsinfo_nl_en, by = c("genre_NL1" = "item_NL")) %>% 
-  # rename(genre_EN1 = item_EN) %>% 
-  # left_join(tbl_gidsinfo_nl_en, by = c("genre_NL2" = "item_NL")) %>% 
-  # rename(genre_EN2 = item_EN) %>% 
-  # mutate(json_start = date_time,
-  #        json_stop = date_time + dminutes(as.integer(size))) %>% 
-  select(date_time,
-         json_start,
-         json_stop,
-         hh_offset_dag,
-         hh_offset_uur,
-         size,
-         titel_NL,
-         titel_EN,
-         genre_NL1,
-         genre_EN1,
-         genre_NL2,
-         genre_EN2,
-         intro_NL,
-         intro_EN,
-         productie_taak,
-         productie_taak_EN,
-         productie_mdw
-  )
+  inner_join(cz_week) %>% 
+  filter(cz_slot_key != "herhaling") # %>% 
+  # filter(cz_slot_key != opposing_product)
 
-broadcasts_orig <- broadcasts.I %>% 
-  select(-hh_offset_dag, -hh_offset_uur, -size)
+#+ pivot-wide the df ----
+broadcasts.II <- broadcasts.I %>% 
+  spread(key = cz_slot_key, value = cz_slot_value) 
 
+#+ skip mtr-flag = F ----
+# keep only those with mtr-flag; format to match spreadsheet
+broadcasts.III <- broadcasts.II %>%
+  filter(is.na(`in mt-rooster`) | `in mt-rooster` != "n") %>% 
+  mutate(sh_dockrefs_m2p = 0,
+         sh_uzd = as.integer(format(date_time, "%Y%m%d")),
+         sh_kleur = 0,
+         sh_uitzending = format(date_time, "%Y-%m-%d"),
+         sh_tijd.duur = as.integer(paste0(str_sub(cz_slot_pfx, 5), size)),
+         sh_gids = NA_character_,
+         sh_titel = titel,
+         sh_type = NA_character_,
+         sh_presentatie = NA_character_,
+         sh_techniek = NA_character_,
+         sh_datum = NA,
+         sh_bijzonderheden = `cmt mt-rooster`,
+         sh_redactie = NA_character_,
+         sh_extra = NA_character_) %>% 
+  select(starts_with("sh_"), 
+         starts_with("prod"),
+         balk)
+#+ set product ----
+# formerly known as "broadcast type"
+if (cycle == "A") {
+  broadcasts.IV <- broadcasts.III %>% 
+    mutate(sh_type = paste0(if_else(is.na(product), 
+                                    "", 
+                                    product), 
+                            if_else(is.na(`product A`),
+                                    "",
+                                    `product A`)
+                            )
+    )
+} else {
+  broadcasts.IV <- broadcasts.III %>% 
+    mutate(sh_type = paste0(if_else(is.na(product), 
+                                    "", 
+                                    product), 
+                            if_else(is.na(`product B`),
+                                    "",
+                                    `product B`)
+                            )
+    )
+}
+
+#+ trim select list, add colour ----
+continue_same_banding <- if_else(mtr_max == mtr_start_date, T, F)
+
+last_used_colour <- tbl_montage %>% 
+  filter(Uitzending == mtr_max) %>% 
+  select(kleur)
+
+broadcasts.V <- broadcasts.IV %>% 
+  select(-starts_with("prod"))
