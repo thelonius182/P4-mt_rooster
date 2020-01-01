@@ -69,6 +69,14 @@ get_cycle <- function(cz_week_start) {
   if_else(i_diff %% 2 == 0, "B", "A")
 }
 
+banding_offset <- function(bc_date) {
+  # test: bc_date <- ymd("2020-01-31")
+  ref_date_orange_banding <- ymd("20191122")
+  i_diff <- as.integer(bc_date - ref_date_orange_banding) 
+  
+  if_else(i_diff %% 2 == 0, 0L, 2L) # 0 = orange, 2 = blue
+}
+
 fmt_utc_ts <- function(some_date) {
   format(some_date, "%Y-%m-%d_%a%H-%Z%z") %>%
     str_replace("CES?T", "UTC") %>%

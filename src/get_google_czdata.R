@@ -24,3 +24,4 @@ drive_download(file = gd_file, overwrite = T, path = path_roosters)
 
 # sheets als df ----
 tbl_montage <- cz_extract_sheet(path_roosters, sheet_name = "montage")
+tbl_bijzonderheden <- cz_extract_sheet(path_roosters, sheet_name = "bijzonderheden montagerooster")

@@ -34,7 +34,7 @@ mtr_start_date <-
 
 # retrieve all info like it is done for "P1-wpgidsweek". Sharing this at code-level
 # will be a future excercise :)
-current_run_start <- ymd(mtr_start_date)
+current_run_start <- date(mtr_start_date)
 flog.info("Dit wordt de MT-roosterweek van %s", 
           format(current_run_start, "%A %d %B %Y"),
           name = "mtr_log")
@@ -90,7 +90,7 @@ weekday_levels = c("do", "vr", "za", "zo", "ma", "di", "wo")
 # = = = = = = = = = = = = = = = = = = = = = = = = + = = = = = = = = = -----
 
 # prep the weekly's, under 'week-0' ---------------------------------------
-week_0_init <- tbl_zenderschema %>%
+week_0.I <- tbl_zenderschema %>%
   select(cz_slot = slot,
          hh_formule,
          wekelijks,
@@ -106,7 +106,7 @@ week_0_init <- tbl_zenderschema %>%
   )
 
 # + pivot-long to collapse week attributes into NV-pairs ------------------
-week_0_long1 <- gather(week_0_init, slot_key, slot_value, -cz_slot, na.rm = T) %>% 
+week_0.II <- gather(week_0.I, slot_key, slot_value, -cz_slot, na.rm = T) %>% 
   mutate(slot_key = case_when(slot_key == "wekelijks" ~ "titel", 
                               slot_key == "hh_formule" ~ "herhaling",
                               slot_key == "bijzonderheden_wekelijks" ~ "cmt mt-rooster",
@@ -132,9 +132,9 @@ week_0_long1 <- gather(week_0_init, slot_key, slot_value, -cz_slot, na.rm = T) %
   arrange(cz_slot_day, cz_slot_hour, slot_key)
 
 # + do 5 copies of each slot, one for each ordinal day --------------------
-week_0_long2 <-
+week_0.III <-
   gather(
-    data = week_0_long1,
+    data = week_0.II,
     key = ord_day_tag,
     value = ord_day, 
     -starts_with("cz_"), -starts_with("slot_")
@@ -150,7 +150,7 @@ week_0_long2 <-
   arrange(cz_slot_day, ord_day, cz_slot_hour, cz_slot_key)
 
 # + promote slot-size to be an attribute too ------------------------------
-week_temp <- week_0_long2 %>% 
+week_temp <- week_0.III %>% 
   select(-cz_slot_key, -cz_slot_value) %>% 
   mutate(cz_slot_key = "size",
          cz_slot_key = factor(x = cz_slot_key, ordered = T, levels = cz_slot_key_levels),
@@ -159,11 +159,11 @@ week_temp <- week_0_long2 %>%
   distinct
 
 # + final result week-0 ---------------------------------------------------
-week_0 <- bind_rows(week_0_long2, week_temp) %>% 
+week_0 <- bind_rows(week_0.III, week_temp) %>% 
   select(-cz_slot_size) %>% 
   arrange(cz_slot_day, ord_day, cz_slot_hour, cz_slot_key)
 
-rm(week_0_init, week_0_long1, week_0_long2, week_temp)
+rm(week_0.I, week_0.II, week_0.III, week_temp)
 
 # = = = = = = = = = = = = = = = = = = = = = = = = + = = = = = = = = = -----
 
@@ -231,8 +231,10 @@ broadcasts.III <- broadcasts.II %>%
   filter(is.na(`in mt-rooster`) | `in mt-rooster` != "n") %>% 
   mutate(sh_dockrefs_m2p = 0,
          sh_uzd = as.integer(format(date_time, "%Y%m%d")),
-         sh_kleur = 0,
-         sh_uitzending = format(date_time, "%Y-%m-%d"),
+         sh_kleur = (row_number() %% 2L) 
+                  + banding_offset(date(date_time)),
+         sh_kleur = if_else(is.na(balk), sh_kleur, 4L),
+         sh_uitzending = date(date_time),
          sh_tijd.duur = as.integer(paste0(str_sub(cz_slot_pfx, 5), size)),
          sh_gids = NA_character_,
          sh_titel = titel,
@@ -240,12 +242,13 @@ broadcasts.III <- broadcasts.II %>%
          sh_presentatie = NA_character_,
          sh_techniek = NA_character_,
          sh_datum = NA,
-         sh_bijzonderheden = `cmt mt-rooster`,
+         sh_bijzonderheden = as.integer(`cmt mt-rooster`),
          sh_redactie = NA_character_,
          sh_extra = NA_character_) %>% 
   select(starts_with("sh_"), 
          starts_with("prod"),
          balk)
+
 #+ set product ----
 # formerly known as "broadcast type"
 if (cycle == "A") {
@@ -270,12 +273,18 @@ if (cycle == "A") {
     )
 }
 
-#+ trim select list, add colour ----
-continue_same_banding <- if_else(mtr_max == mtr_start_date, T, F)
-
-last_used_colour <- tbl_montage %>% 
-  filter(Uitzending == mtr_max) %>% 
-  select(kleur)
-
+#+ replace "balk", trim select list ----
 broadcasts.V <- broadcasts.IV %>% 
-  select(-starts_with("prod"))
+  mutate(sh_titel = if_else(is.na(balk), sh_titel, balk)) %>% 
+  select(-starts_with("prod"), -balk)
+
+#+ dereference bijz.mtr ----
+broadcasts <- broadcasts.V %>% 
+  left_join(tbl_bijzonderheden, by = c("sh_bijzonderheden" = "verwijzing")) %>% 
+  mutate(sh_bijzonderheden = bijzonderheden,
+         sh_presentatie = if_else(sh_type == "h", "x", NA_character_),
+         sh_techniek = if_else(sh_type == "h", "x", NA_character_)
+  ) %>% 
+  select(starts_with("sh_"))
+
+rm(broadcasts.I, broadcasts.II, broadcasts.III, broadcasts.IV, broadcasts.V)
