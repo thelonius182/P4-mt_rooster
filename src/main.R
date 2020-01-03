@@ -25,16 +25,23 @@ source("src/get_google_czdata.R", encoding = "UTF-8")
 # i.e. of Thursday 13:00 to start new week of MT-rooster (mtr)
 # Reasoning: cz-week runs Th13-Th13, so current aas ends either on We or Th.
 #            if We, then start = max(mtr) + 1, else start = max(mtr)
-mtr_max <- max(tbl_montage$Uitzending)
+mtr_max <- tbl_montage %>% 
+  arrange(desc(Uitzending)) %>% 
+  filter(row_number() == 1L) %>% 
+  select(Uitzending)
 
-mtr_start_date <-
-  if_else(wday(mtr_max, label = T, abbr = T) == "do", # legend: 1 = zo
-          mtr_max,
-          mtr_max + days(1L))
+mtr_window <- mtr_max %>% 
+  mutate(run_start = if_else(wday(Uitzending, label = T, abbr = T) == "do", # legend: 1 = zo
+                                  Uitzending,
+                                  Uitzending + ddays(1L)),
+         run_stop = run_start + ddays(7L)
+  )
+  
 
 # retrieve all info like it is done for "P1-wpgidsweek". Sharing this at code-level
 # will be a future excercise :)
-current_run_start <- date(mtr_start_date)
+# connect new to existing code base variables
+current_run_start <- mtr_window$run_start
 flog.info("Dit wordt de MT-roosterweek van %s", 
           format(current_run_start, "%A %d %B %Y"),
           name = "mtr_log")
@@ -43,7 +50,7 @@ flog.info("Dit wordt de MT-roosterweek van %s",
 # but to the schedule-template both Thursdays are the same, as the
 # template is undated.
 # Both Thursday parts will separate when the schedule gets 'calendarized'
-current_run_stop <- current_run_start + ddays(7)
+current_run_stop <- mtr_window$run_stop
 
 # create time series ------------------------------------------------------
 cz_slot_days <- seq(from = current_run_start, to = current_run_stop, by = "days")
@@ -211,7 +218,7 @@ rm(cz_slot_dates_raw)
 
 # join dates, slots & info ------------------------------------------------
 # + get cycle for A/B-week ------------------------------------------------
-cycle <- get_cycle(current_run_start)
+cycle <- get_cycle(as.Date(current_run_start))
 
 # + join the lot ----
 # !deprecated! set the product belonging to the other cycle, so it can be skipped
@@ -288,3 +295,37 @@ broadcasts <- broadcasts.V %>%
   select(starts_with("sh_"))
 
 rm(broadcasts.I, broadcasts.II, broadcasts.III, broadcasts.IV, broadcasts.V)
+
+# save mtr-week details as tsv ----
+mtr_file_local <- paste0(config$output.dir, "mtr.tsv")
+
+write.table(x = broadcasts,
+            file = mtr_file_local,
+            append = F,
+            quote = F,
+            sep = "\t",
+            eol = "\n",
+            na = "",
+            row.names = F,
+            col.names = F,
+            fileEncoding = "UTF-8")
+
+# upload to GD ----
+# mtr_file_gd <- 
+
+# drive_rm(mtr_file_gd)
+#> Files deleted:
+#>   * README-chicken.csv: 1mjn-J_HbyfQisV3Kpl__C5IBLFiGW-1X
+
+mtr_sheet <- drive_upload(media = mtr_file_local,
+                          name = "mtr_nieuwe_week",
+                          type = "spreadsheet",
+                          overwrite = T
+)
+
+#> Local file:
+#>   * /Users/jenny/Library/R/3.6/library/googledrive/extdata/chicken.csv
+#> uploaded into Drive file:
+#>   * README-chicken-sheet: 1j2VsF1NcYlc6W9OwenhhMijl7u7HOxpdDXY9UJrg_SM
+#> with MIME type:
+#>   * application/vnd.google-apps.spreadsheet

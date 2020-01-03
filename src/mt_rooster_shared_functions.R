@@ -76,10 +76,3 @@ banding_offset <- function(bc_date) {
   
   if_else(i_diff %% 2 == 0, 0L, 2L) # 0 = orange, 2 = blue
 }
-
-fmt_utc_ts <- function(some_date) {
-  format(some_date, "%Y-%m-%d_%a%H-%Z%z") %>%
-    str_replace("CES?T", "UTC") %>%
-    str_sub(1, 22)
-}
-
