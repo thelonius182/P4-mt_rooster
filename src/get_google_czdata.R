@@ -11,13 +11,13 @@ cz_extract_sheet <- function(ss_name, sheet_name) {
 
 cz_get_url <- function(cz_ss) {
   cz_url <- paste0("url_", cz_ss)
-  paste0("https://", config$url_pfx, config[[cz_url]])
+  paste0("https://", config$url_pfx, config[[cz_url]]) # use [[ instead of $, because it is a variable, not a constant
 }
 
 # downloads GD ----
 # aanmelden bij GD loopt via de procedure die beschreven is in "Operation Missa > Voortgang > 4.Toegangsrechten GD".
 
-# Nipper-spreadsheet ophalen bij GD
+# Roosters 3.0 spreadsheet ophalen bij GD
 path_roosters <- paste0(config$gs_downloads, "/", "roosters.xlsx")
 gd_file <- cz_get_url("roosters")
 drive_download(file = gd_file, overwrite = T, path = path_roosters)

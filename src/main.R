@@ -18,7 +18,7 @@ flog.info("= = = = = Montagerooster = = = = =", name = "mtr_log")
 
 config <- read_yaml("config.yaml")
 
-# read tbl_montage ----
+# read tbl's ----
 source("src/get_google_czdata.R", encoding = "UTF-8")
 
 # Find start date new week ----
@@ -76,7 +76,8 @@ cz_slot_dates_raw <- as.data.frame(cz_slot_dates) %>%
   select(-ordinal_day) %>% 
   arrange(date_time)
 
-# read schedule template --------------------------------------------------
+# read schedule template 
+# Needs the RDS-version, because of pre-prepping the table in project cz_gdrive
 tbl_zenderschema <- readRDS(paste0(config$giva.rds.dir, "zenderschema.RDS"))
 
 # create factor levels ----------------------------------------------------
@@ -221,8 +222,6 @@ rm(cz_slot_dates_raw)
 cycle <- get_cycle(as.Date(current_run_start))
 
 # + join the lot ----
-# !deprecated! set the product belonging to the other cycle, so it can be skipped
-# opposing_product <- paste0("product ", if_else(cycle == "A", "B", "A"))
 broadcasts.I <- cz_slot_dates %>% 
   inner_join(cz_week) %>% 
   filter(cz_slot_key != "herhaling") # %>% 
@@ -311,21 +310,8 @@ write.table(x = broadcasts,
             fileEncoding = "UTF-8")
 
 # upload to GD ----
-# mtr_file_gd <- 
-
-# drive_rm(mtr_file_gd)
-#> Files deleted:
-#>   * README-chicken.csv: 1mjn-J_HbyfQisV3Kpl__C5IBLFiGW-1X
-
 mtr_sheet <- drive_upload(media = mtr_file_local,
                           name = "mtr_nieuwe_week",
                           type = "spreadsheet",
                           overwrite = T
 )
-
-#> Local file:
-#>   * /Users/jenny/Library/R/3.6/library/googledrive/extdata/chicken.csv
-#> uploaded into Drive file:
-#>   * README-chicken-sheet: 1j2VsF1NcYlc6W9OwenhhMijl7u7HOxpdDXY9UJrg_SM
-#> with MIME type:
-#>   * application/vnd.google-apps.spreadsheet
