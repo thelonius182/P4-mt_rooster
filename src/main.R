@@ -57,7 +57,7 @@ cz_slot_days <- seq(from = current_run_start, to = current_run_stop, by = "days"
 cz_slot_hours <- seq(0, 23, by = 1)
 cz_slot_dates <- merge(cz_slot_days, chron(time = paste(cz_slot_hours, ":", 0, ":", 0)))
 colnames(cz_slot_dates) <- c("slot_date", "slot_time")
-cz_slot_dates$date_time <- as.POSIXct(paste(cz_slot_dates$slot_date, cz_slot_dates$slot_time))
+cz_slot_dates$date_time <- as.POSIXct(paste(cz_slot_dates$slot_date, cz_slot_dates$slot_time), "GMT")
 row.names(cz_slot_dates) <- NULL
 
 # + create cz-slot prefixes and combine with calendar ---------------------
