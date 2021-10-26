@@ -291,7 +291,8 @@ broadcasts <- broadcasts.V %>%
          sh_presentatie = if_else(sh_type == "h", "x", NA_character_),
          sh_techniek = if_else(sh_type == "h", "x", NA_character_)
   ) %>% 
-  select(starts_with("sh_"))
+  select(starts_with("sh_")) %>% 
+  distinct()
 
 rm(broadcasts.I, broadcasts.II, broadcasts.III, broadcasts.IV, broadcasts.V)
 
